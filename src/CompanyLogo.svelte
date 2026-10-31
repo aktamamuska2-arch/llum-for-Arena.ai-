@@ -1,4 +1,6 @@
 <script>
+	import Icon from './Icon.svelte';
+	import { feCpu } from './feather.js';
 	export let model;
 	export let size = 'h-3.5 w-3.5';
 	export let rounded = null;
@@ -7,7 +9,11 @@
 </script>
 
 {#if model && model.provider}
-	{#if model.provider === 'OpenAI' || model.id.startsWith('openai')}
+	{#if model.provider === 'Local'}
+		<span class="flex {size} shrink-0 items-center justify-center text-emerald-600"
+			><Icon icon={feCpu} class="h-full w-full" /></span
+		>
+	{:else if model.provider === 'OpenAI' || model.id.startsWith('openai')}
 		<img src="/logos/openai.ico" loading="lazy" class="{size} {rounded || 'rounded-sm'}" alt="" />
 	{:else if model.provider === 'Anthropic' || model.id.startsWith('anthropic')}
 		<img

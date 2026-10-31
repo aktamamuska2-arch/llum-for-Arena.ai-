@@ -2,18 +2,13 @@ import { writable, get } from 'svelte/store';
 import { persisted } from './localstorage.js';
 import { v4 as uuidv4 } from 'uuid';
 import { llumHostedAddress } from './sync.js';
+import { DEFAULT_PARAMS, normalizeParams } from './generation.js';
 
 export const controller = writable(null);
 
-export const params = persisted('params', {
-	temperature: 0.3,
-	maxTokens: 0,
-	messagesContextLimit: 0,
-	reasoningEffort: {
-		'low-medium-high': 'high',
-		range: 64000,
-	},
-});
+export const params = persisted('params', DEFAULT_PARAMS);
+// Migrate older saved settings and add the new local sampling knobs safely.
+params.update(normalizeParams);
 
 export const config = persisted('config', {
 	explicitToolView: false,
@@ -43,7 +38,10 @@ export function setAPIKeysFromObject(obj) {
 	mistralAPIKey.set(obj.mistral || '');
 }
 
-export const remoteServer = persisted('remoteServer', { address: 'http://localhost:8081', password: '' });
+export const remoteServer = persisted('remoteServer', {
+	address: 'http://localhost:8081',
+	password: '',
+});
 export const syncServer = persisted('syncServer', {
 	address: llumHostedAddress,
 	token: uuidv4(),

@@ -298,13 +298,10 @@
 											? 'relative'
 											: ''} mb-3 mt-2 border-l border-gray-200 pl-6"
 									>
-										<MessageContent
-											message={{ content: message.thoughts }}
-											bind:contentHeight
-										/>
+										<MessageContent message={{ content: message.thoughts }} bind:contentHeight />
 										{#if contentHeight > 400}
 											<button
-												class="sticky z-10 bottom-4 left-1/2 flex translate-x-[calc(-50%+32px)] items-center gap-x-1.5 self-start rounded-full bg-gray-200 px-3.5 py-2 text-left text-xs transition-colors hover:bg-gray-300"
+												class="sticky bottom-4 left-1/2 z-10 flex translate-x-[calc(-50%+32px)] items-center gap-x-1.5 self-start rounded-full bg-gray-200 px-3.5 py-2 text-left text-xs transition-colors hover:bg-gray-300"
 												on:click={() => {
 													message.thoughtsExpanded = !message.thoughtsExpanded;
 													saveMessage(message);
@@ -324,6 +321,9 @@
 					{/if}
 
 					<MessageContent {message} />
+					{#if message.notice}
+						<p class="mt-2 text-xs text-amber-700">{message.notice}</p>
+					{/if}
 
 					{#if !$config.explicitToolView && message.toolcalls?.length > 0}
 						<div class="-mb-1 flex flex-wrap gap-3 [&:first-child]:mt-1">

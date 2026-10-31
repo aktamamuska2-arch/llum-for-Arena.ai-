@@ -1,3 +1,8 @@
+# Local model weights, isolated Python environment, and test artifacts
+.runtime/
+__pycache__/
+*.pyc
+
 # Logs
 logs
 *.log

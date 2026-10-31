@@ -20,6 +20,7 @@
 		formatMultipleModelNames,
 	} from './providers.js';
 	import ModelSelector from './ModelSelector.svelte';
+	import LocalModelStatus from './LocalModelStatus.svelte';
 	import CompanyLogo from './CompanyLogo.svelte';
 	import { controller, remoteServer, config, params, toolSchema, syncServer } from './stores.js';
 	import SettingsModal from './SettingsModal.svelte';
@@ -126,6 +127,7 @@
 				}
 			}
 		}
+		selectDefaultModel();
 	};
 	request.onerror = (event) => {
 		console.error(event.target.error);
@@ -401,6 +403,7 @@
 	}
 	let textareaEls = [];
 	let inputTextareaEl;
+	let inputComponent;
 
 	let handleFileDrop;
 
@@ -433,7 +436,8 @@
 			const msg = {
 				id: uuidv4(),
 				role: 'assistant',
-				error: 'No model selected. Please add at least one API key and select a model to begin.',
+				error:
+					'Model belum tersedia. Pastikan server lokal aktif, atau tambahkan API key dan pilih model cloud melalui Settings.',
 				content: '',
 			};
 			saveMessage(msg);
@@ -522,8 +526,12 @@
 				return;
 			}
 
-			if (chunk.choices.length === 0) {
-				handleAbort();
+			if (chunk.notice) {
+				convo.messages[i].notice = chunk.notice;
+				saveMessage(convo.messages[i]);
+			}
+
+			if (!chunk.choices?.length) {
 				return;
 			}
 
@@ -619,9 +627,14 @@
 				chunk.choices &&
 				(chunk.choices[0].finish_reason === 'stop' ||
 					chunk.choices[0].finish_reason === 'end_turn' ||
-					chunk.choices[0].finish_reason === 'tool_calls')
+					chunk.choices[0].finish_reason === 'tool_calls' ||
+					chunk.choices[0].finish_reason === 'length')
 			) {
 				generating = false;
+				if (chunk.choices[0].finish_reason === 'length') {
+					convo.messages[i].notice = 'Batas token jawaban tercapai. Jawaban mungkin belum selesai.';
+					saveMessage(convo.messages[i]);
+				}
 
 				if (convo.messages[i].reasoning) {
 					convo.messages[i].thinking = false;
@@ -785,6 +798,7 @@
 			$convoId = existingNewConvo.id;
 			convo = convos[$convoId];
 			convo.models = oldModels;
+			selectDefaultModel();
 
 			historyOpen = false;
 			inputTextareaEl.focus();
@@ -797,7 +811,7 @@
 			models:
 				convo.models.length > 0
 					? [...convo.models]
-					: [models.find((m) => m.id === 'anthropic/claude-3.5-sonnet')],
+					: [models[0] || { id: null, name: 'Select a model', provider: null }],
 			messages: [],
 			versions: {},
 			tools: [],
@@ -878,7 +892,10 @@
 				messages: convo.messages,
 			});
 			const share = `${window.location.protocol}//${window.location.host}/?s=${encoded}`;
-			if (share.length > 200) {
+			if (convo.models[0]?.provider === 'Local') {
+				// Local conversations are never uploaded to the legacy URL shortener.
+				resolve(share);
+			} else if (share.length > 200) {
 				const data = new FormData();
 				data.append('pwd', 'muie_webshiti');
 				data.append('f:1', new Blob([encoded], { type: 'text/plain' }), 'content.txt');
@@ -953,6 +970,14 @@
 	}
 
 	let models = [];
+
+	function selectDefaultModel() {
+		const localModel = models.find((model) => model.provider === 'Local');
+		if (localModel && !convo.models?.[0]?.provider) {
+			convo.models = [localModel];
+			if (db) saveConversation(convo);
+		}
+	}
 
 	let loading = false;
 
@@ -1058,6 +1083,7 @@
 				loading = false;
 			},
 		});
+		selectDefaultModel();
 	});
 
 	// For displaying compact tools, we need to collapse sequences of Assistant and Tool messages into a single message
@@ -1147,6 +1173,8 @@
 		</button>
 		<button
 			data-trigger="knobs"
+			aria-label="Buka parameter generasi"
+			aria-expanded={knobsOpen}
 			class="flex rounded-full p-2 transition-colors hover:bg-gray-100"
 			on:click={() => (knobsOpen = !knobsOpen)}
 		>
@@ -1278,6 +1306,8 @@
 				</button>
 				<button
 					data-trigger="knobs"
+					aria-label="Buka parameter generasi"
+					aria-expanded={knobsOpen}
 					class="flex rounded-full p-3 transition-colors hover:bg-gray-100"
 					on:click={() => (knobsOpen = !knobsOpen)}
 				>
@@ -1300,7 +1330,7 @@
 						bind:this={scrollableEl}
 						class="{splitView
 							? 'scrollbar-none'
-							: 'scrollbar-ultraslim'} scrollable flex h-full w-full flex-col overflow-y-auto pb-[128px]"
+							: 'scrollbar-ultraslim'} scrollable flex h-full w-full flex-col overflow-y-auto pb-[160px]"
 						on:scroll={() => {
 							// If direction is going up, set autoscrollCanceled to true
 							// Otherwise if we are at the bottom of the page, re-enable autoscroll
@@ -1319,6 +1349,12 @@
 							previousScrollTop = scrollTop;
 						}}
 					>
+						{#if convo.models[0]?.provider === 'Local'}
+							<LocalModelStatus
+								compact={convo.messages.length > 0}
+								on:example={({ detail }) => inputComponent?.setPrompt(detail)}
+							/>
+						{/if}
 						{#if convo.messages.length > 0}
 							<ul
 								class="{splitView
@@ -1366,6 +1402,7 @@
 					</div>
 
 					<Input
+						bind:this={inputComponent}
 						bind:generating
 						bind:convo
 						{saveMessage}
@@ -1401,7 +1438,7 @@
 			</div>
 		</div>
 
-		<KnobsSidebar {knobsOpen} />
+		<KnobsSidebar {knobsOpen} model={convo.models[0]} on:close={() => (knobsOpen = false)} />
 	</div>
 </main>
 

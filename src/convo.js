@@ -1,6 +1,8 @@
 import { get } from 'svelte/store';
 import { controller, params, toolSchema } from './stores.js';
 import { headersForFetch, providers } from './providers.js';
+import { readSSE } from './sse.js';
+import { localSamplingParams } from './generation.js';
 
 export async function complete(convo, onupdate, onabort) {
 	controller.set(new AbortController());
@@ -13,7 +15,9 @@ export async function complete(convo, onupdate, onabort) {
 		model.provider === 'OpenAI' ||
 		model.provider === 'OpenRouter' ||
 		model.provider === 'Groq' ||
-		model.provider === 'Mistral';
+		model.provider === 'Mistral' ||
+		model.provider === 'Local' ||
+		model.provider === 'Ollama';
 
 	let messages = convo.messages.map(
 		openAICompatibleFormat ? messageToOpenAIFormat : messageToAnthropicFormat
@@ -41,7 +45,7 @@ export async function complete(convo, onupdate, onabort) {
 		.map((group) => group.schema)
 		.flat();
 
-	const activeSchema = schema
+	const activeSchema = (model.supportsTools === false ? [] : schema)
 		.filter((tool) => (convo.tools || []).includes(tool.function.name))
 		.map((tool) => {
 			if (model.provider === 'Anthropic') {
@@ -80,11 +84,17 @@ export async function complete(convo, onupdate, onabort) {
 					: {
 							max_tokens:
 								param.maxTokens != null && param.maxTokens > 0
-									? param.maxTokens
+									? Math.min(param.maxTokens, model.maxTokensLimit || Infinity)
 									: model.provider === 'Anthropic'
 										? model.maxTokensDefault || 4096
-										: undefined,
+										: model.maxTokensDefault,
 						}),
+				...(model.provider === 'Local'
+					? {
+							...localSamplingParams(param),
+							anti_repetition: param.antiRepetition !== false,
+						}
+					: {}),
 				tools: activeSchema.length > 0 ? activeSchema : undefined,
 				system,
 				messages,
@@ -140,12 +150,26 @@ export async function complete(convo, onupdate, onabort) {
 		});
 	};
 
-	const response = await completions(get(controller).signal);
-	if (stream) {
-		streamResponse(model.provider, response.body, onupdate, onabort);
-	} else {
-		const responseBody = await response.json();
-		onupdate(responseBody);
+	try {
+		const response = await completions(get(controller).signal);
+		if (!response.ok) {
+			const body = await response.json().catch(() => ({}));
+			const detail = body.error?.message || body.detail;
+			throw new Error(
+				typeof detail === 'string' ? detail : `Model server returned HTTP ${response.status}`
+			);
+		}
+		if (stream) {
+			await streamResponse(model.provider, response.body, onupdate, onabort);
+		} else {
+			onupdate(await response.json());
+		}
+	} catch (error) {
+		if (error.name !== 'AbortError') onupdate({ error: error.message });
+		onabort();
+	} finally {
+		// Also clear the spinner if a stream ends without a terminal chunk.
+		onabort();
 	}
 }
 
@@ -366,89 +390,15 @@ function messageToAnthropicFormat(msg) {
 }
 
 async function streamResponse(provider, readableStream, onupdate, onabort) {
-	try {
-		const reader = readableStream.getReader();
-		const decoder = new TextDecoder();
-
-		let done, value;
-		let leftover = '';
-
-		while (!done) {
-			({ value, done } = await reader.read());
-
-			if (done) {
-				return;
-			}
-
-			const string = decoder.decode(value);
-			const pairs = string.split('\n\n');
-
-			for (let pair of pairs) {
-				if (pair === '') {
-					continue;
-				}
-
-				// If we have leftover from the previous chunk, prepend it to the current line
-				if (leftover !== '') {
-					pair = leftover + pair;
-					leftover = '';
-				}
-
-				// Ignore comments
-				if (pair[0] === ':') {
-					continue;
-				}
-
-				// OpenAI and only OpenAI sometimes sends "\ndata:"
-				pair = pair.trim();
-
-				let event = null;
-				let data = null;
-
-				if (pair.startsWith('event:')) {
-					const [eventd, datad] = pair.split('\n');
-					event = eventd.substring('event: '.length);
-					data = datad.substring('data: '.length);
-				} else if (pair.startsWith('data: ')) {
-					data = pair.substring('data: '.length);
-				} else if (pair.startsWith('error: ')) {
-					onupdate({ error: pair.substring('error: '.length) });
-					onabort();
-					return;
-				} else {
-					// Unknown event
-					onupdate({ error: pair });
-					onabort();
-					return;
-				}
-
-				if (provider === 'Anthropic') {
-					extractResponseAnthropic(event, data, onupdate);
-				} else {
-					// OpenAI-compatible:
-					extractResponseOpenAI(data, onupdate, () => {
-						leftover = pair;
-					});
-				}
-			}
-		}
-	} catch (error) {
-		if (error instanceof DOMException && error.name === 'AbortError') {
-			onabort();
+	await readSSE(readableStream, async ({ event, data }) => {
+		if (provider === 'Anthropic') {
+			extractResponseAnthropic(event, data, onupdate);
 		} else {
-			onupdate({ error: error.message });
+			const parsed = JSON.parse(data);
+			if (parsed.error) throw new Error(parsed.error.message || JSON.stringify(parsed.error));
+			await onupdate(parsed);
 		}
-	}
-}
-
-function extractResponseOpenAI(data, onupdate, onincomplete) {
-	try {
-		const parsed = JSON.parse(data);
-		onupdate(parsed);
-	} catch (err) {
-		// If the JSON parsing fails, we've got an incomplete event
-		onincomplete();
-	}
+	});
 }
 
 function extractResponseAnthropic(event, data, onupdate) {

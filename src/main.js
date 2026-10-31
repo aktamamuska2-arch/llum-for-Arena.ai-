@@ -1,3 +1,4 @@
+import 'katex/dist/katex.min.css';
 import './app.pcss';
 import App from './App.svelte';
 

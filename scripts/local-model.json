@@ -1,0 +1,30 @@
+{
+  "id": "smollm2-135m-instruct",
+  "name": "SmolLM2 135M · Local CPU",
+  "file": "SmolLM2-135M-Instruct.Q4_1.gguf",
+  "url": "https://api.github.com/repos/simonw/llm-smollm2/git/blobs/49f8d2e965572d8786696fdc0f921dc499867781",
+  "sourceRepository": "https://github.com/simonw/llm-smollm2",
+  "sourceCommit": "afed0963b3a8bcca17c83f451a161eb2edbc59fe",
+  "size": 98362432,
+  "sha256": "b179c9523d0e6a0f98a330c7562b682750a6f8c8c15e5bc70ea373728110db53",
+  "license": "Apache-2.0",
+  "contextTokens": 2048,
+  "maxOutputTokens": 512,
+  "defaultOutputTokens": 256,
+  "threads": 2,
+  "penaltyLastN": 128,
+  "sampling": {
+    "temperature": 0.65,
+    "top_p": 0.9,
+    "top_k": 40,
+    "repeat_penalty": 1.15,
+    "frequency_penalty": 0.25
+  },
+  "samplingLimits": {
+    "temperature": [0, 2],
+    "top_p": [0, 1],
+    "top_k": [0, 200],
+    "repeat_penalty": [1, 2],
+    "frequency_penalty": [0, 1]
+  }
+}

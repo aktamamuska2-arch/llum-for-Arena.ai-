@@ -1,0 +1,11 @@
+# CPU-only runtime. llama-cpp-python is built from its pinned source distribution.
+cmake==3.31.10
+ninja==1.13.2
+llama-cpp-python[server]==0.3.16
+fastapi==0.162.0
+starlette==1.1.0
+uvicorn==0.54.0
+sse-starlette==3.6.0
+pydantic==2.14.2
+pydantic-settings==2.16.2
+starlette-context==0.3.6
