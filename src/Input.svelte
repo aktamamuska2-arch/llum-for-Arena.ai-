@@ -182,6 +182,14 @@ ${file.text}
 	let fileInputEl;
 	export let inputTextareaEl;
 
+	export function setPrompt(text) {
+		content = text;
+		tick().then(() => {
+			inputTextareaEl.focus();
+			autoresizeTextarea();
+		});
+	}
+
 	export function autoresizeTextarea() {
 		inputTextareaEl.style.height = 'auto';
 		inputTextareaEl.style.height = inputTextareaEl.scrollHeight + 2 + 'px';
@@ -409,6 +417,10 @@ ${file.text}
 					? '!pt-[112px]'
 					: ''} max-h-[90dvh] w-full resize-none rounded-[18px] border border-slate-200 pb-14 pl-5 pt-4 font-normal text-slate-800 shadow-sm transition-colors scrollbar-slim focus:border-slate-300 focus:outline-none"
 				rows={1}
+				aria-label="Pesan"
+				placeholder={convo.models[0]?.provider === 'Local'
+					? 'Tanyakan sesuatu… (English works best)'
+					: 'Message…'}
 				bind:value={content}
 				on:paste={handlePaste}
 				on:keydown={(event) => {
@@ -454,7 +466,10 @@ ${file.text}
 					on:scroll={updateFades}
 					class="flex max-w-[220px] gap-2 overflow-x-auto scrollbar-none sm:max-w-none sm:overflow-x-visible"
 				>
-					<div id="tool-dropdown" class="contents">
+					<div
+						id="tool-dropdown"
+						class={convo.models[0]?.supportsTools === false ? 'hidden' : 'contents'}
+					>
 						<ToolPill icon={feTool} selected={toolsOpen} on:click={() => (toolsOpen = !toolsOpen)}>
 							Tools
 							{#if convo.tools?.length > 0}
@@ -551,6 +566,7 @@ ${file.text}
 				{/if}
 				{#if generating && convo.messages.filter((msg) => msg.generated).length > 0}
 					<button
+						aria-label="Hentikan jawaban"
 						class="group flex h-8 w-8 rounded-full bg-slate-800 transition-transform hover:scale-110"
 						on:click={() => {
 							handleAbort();
@@ -564,6 +580,7 @@ ${file.text}
 					</button>
 				{:else}
 					<button
+						aria-label="Kirim pesan"
 						disabled={content.length === 0}
 						class="group relative flex h-8 w-8 rounded-full bg-slate-800 transition-transform hover:scale-110 disabled:bg-slate-400 disabled:hover:scale-100"
 						on:click={sendMessage}

@@ -10,6 +10,24 @@ import {
 
 export const providers = [
 	{
+		name: 'Local',
+		url: '/local-api',
+		completionUrl: '/v1/chat/completions',
+		modelsUrl: '/v1/models',
+		responseMapperFn: (json) =>
+			json.data.map((m) => ({
+				id: m.id,
+				name: m.id === 'smollm2-135m-instruct' ? 'SmolLM2 135M · Local CPU' : m.id,
+				provider: 'Local',
+				modality: 'text->text',
+				maxTokensDefault: 256,
+				maxTokensLimit: 512,
+				contextTokens: 2048,
+				supportsTools: false,
+			})),
+		apiKeyFn: () => false,
+	},
+	{
 		name: 'OpenRouter',
 		url: 'https://openrouter.ai/api',
 		completionUrl: '/v1/chat/completions',
@@ -91,7 +109,8 @@ export const providers = [
 	},
 	{
 		name: 'Ollama',
-		url: 'http://localhost:11434',
+		// Opt in to a separately configured proxy; never call the viewer's localhost.
+		url: import.meta.env.VITE_OLLAMA_URL || '/ollama-api',
 		completionUrl: '/v1/chat/completions',
 		modelsUrl: '/api/tags',
 		responseMapperFn: (json) => {
@@ -102,7 +121,7 @@ export const providers = [
 				modality: 'text->text',
 			}));
 		},
-		apiKeyFn: () => false,
+		apiKeyFn: () => (import.meta.env.VITE_OLLAMA_URL ? false : ''),
 	},
 ].filter(Boolean);
 
@@ -231,7 +250,10 @@ export async function fetchModels({ onFinally }) {
 				method: 'GET',
 				headers: headersForFetch(provider, null),
 			})
-				.then((response) => response.json())
+				.then((response) => {
+					if (!response.ok) throw new Error(`Model server returned HTTP ${response.status}`);
+					return response.json();
+				})
 				.then((json) => {
 					if (provider.responseMapperFn) {
 						return provider.responseMapperFn(json);
@@ -329,6 +351,7 @@ export function headersForFetch(provider, model) {
 }
 
 export const priorityOrder = [
+	{ fromProvider: 'Local' },
 	{ fromProvider: 'Ollama' },
 	{
 		exactly: [
@@ -398,6 +421,7 @@ export function hasCompanyLogo(model) {
 			model.provider === 'OpenAI' ||
 			model.provider === 'Mistral' ||
 			model.provider === 'Groq' ||
+			model.provider === 'Local' ||
 			model.id.startsWith('openai') ||
 			model.id.startsWith('anthropic') ||
 			model.id.startsWith('meta-llama') ||

@@ -2,6 +2,20 @@
 
 ### A fast, light, open chat UI
 
+## Jalankan model lokal di sandbox
+
+Fork ini menambahkan **SmolLM2-135M-Instruct (GGUF Q4_1)** dengan inferensi CPU llama.cpp ke UI llum. Tidak perlu API key atau GPU.
+
+```bash
+npm ci
+npm run setup:local   # Linux x86_64, Python 3.11, compiler C/C++
+npm run local        # UI + model: http://localhost:5173
+```
+
+Di Arena, buka **Live Preview → llum · Local AI**. Panel parameter menyediakan Temperature, Top P, Top K, Repeat Penalty, Frequency Penalty, preset, dan penjeda anti-pengulangan. Lihat [LOCAL_MODEL.md](LOCAL_MODEL.md) untuk arsitektur, API, pengujian, batasan model, dan privasi. Bobot serta runtime disimpan di `.runtime/`, bukan di Git.
+
+---
+
 ![image](https://github.com/user-attachments/assets/38cc47cf-06a3-4dca-8ee5-d9c9edf57903)
 
 ### Key features:
